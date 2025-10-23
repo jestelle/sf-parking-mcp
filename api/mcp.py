@@ -2,7 +2,7 @@ from http.server import BaseHTTPRequestHandler
 import json
 import urllib.parse
 from urllib.parse import urlparse, parse_qs
-import httpx
+import urllib.request
 
 
 BASE_URL = "https://services.sfmta.com/arcgis/rest/services/Parking/sfpark_ODS/MapServer/4/query"
@@ -127,10 +127,8 @@ class handler(BaseHTTPRequestHandler):
                 return
 
             # Fetch data from API
-            with httpx.Client(timeout=30.0) as client:
-                response = client.get(url)
-                response.raise_for_status()
-                data = response.json()
+            with urllib.request.urlopen(url, timeout=30) as response:
+                data = json.loads(response.read().decode())
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
