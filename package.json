@@ -2,9 +2,8 @@
   "name": "sf-parking-mcp",
   "version": "0.1.0",
   "description": "SF Parking MCP Server - REST API and MCP endpoints",
-  "type": "module",
   "scripts": {
-    "dev": "node api/mcp.js"
+    "dev": "node api/sse.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4"
