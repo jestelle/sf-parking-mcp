@@ -3,7 +3,7 @@
  * CommonJS version for Vercel compatibility
  */
 
-const { createMCPHandler } = require("mcp-handler");
+const { createMcpHandler } = require("mcp-handler");
 
 const BASE_URL = "https://services.sfmta.com/arcgis/rest/services/Parking/sfpark_ODS/MapServer/4/query";
 
@@ -161,7 +161,7 @@ const tools = [
 /**
  * Create and export MCP handler for Vercel
  */
-module.exports = createMCPHandler({
+module.exports = createMcpHandler({
   name: "sf-parking",
   version: "0.1.0",
   tools,
