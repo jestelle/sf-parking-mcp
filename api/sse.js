@@ -235,7 +235,7 @@ export default async function handler(req, res) {
   }
 
   const server = createServer();
-  const transport = new SSEServerTransport("/api/mcp/message", res);
+  const transport = new SSEServerTransport("/api/sse", res);
 
   await server.connect(transport);
 
