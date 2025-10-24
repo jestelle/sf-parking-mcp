@@ -1,10 +1,11 @@
 /**
- * SF Parking MCP Server - SSE Transport
- * Provides MCP protocol access to San Francisco parking data
+ * SF Parking MCP Server - Streamable HTTP Transport
+ * Implements MCP protocol over HTTP as per specification
+ * https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamablehttp.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -222,7 +223,7 @@ function createServer() {
 }
 
 /**
- * Vercel serverless handler for MCP over SSE
+ * Vercel serverless handler for MCP over streamable HTTP
  */
 export default async function handler(req, res) {
   // CORS headers
@@ -235,12 +236,7 @@ export default async function handler(req, res) {
   }
 
   const server = createServer();
-  const transport = new SSEServerTransport("/api/sse", res);
+  const transport = new StreamableHTTPServerTransport(req, res);
 
   await server.connect(transport);
-
-  // Keep connection alive for SSE
-  req.on('close', () => {
-    server.close();
-  });
 }
