@@ -6,6 +6,7 @@
     "dev": "node api/sse.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.4"
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "mcp-handler": "^1.0.3"
   }
 }

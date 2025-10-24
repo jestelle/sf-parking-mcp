@@ -1,15 +1,9 @@
 /**
- * SF Parking MCP Server - Streamable HTTP Transport
- * Implements MCP protocol over HTTP as per specification
- * https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http
+ * SF Parking MCP Server using mcp-handler
+ * Simple MCP server for Vercel serverless functions
  */
 
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamablehttp.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
+import { createMCPHandler } from "mcp-handler";
 
 const BASE_URL = "https://services.sfmta.com/arcgis/rest/services/Parking/sfpark_ODS/MapServer/4/query";
 
@@ -36,207 +30,139 @@ async function queryParkingAPI(params) {
 }
 
 /**
- * Create and configure the MCP server
+ * Define MCP tools
  */
-function createServer() {
-  const server = new Server(
-    {
-      name: "sf-parking",
-      version: "0.1.0",
-    },
-    {
-      capabilities: {
-        tools: {},
+const tools = [
+  {
+    name: "get_parking_by_bbox",
+    description: "Get parking blockface data within a bounding box (lat/lon coordinates). Returns street parking availability, rates, and location information for SF parking zones.",
+    parameters: {
+      type: "object",
+      properties: {
+        min_lat: {
+          type: "number",
+          description: "Minimum latitude (south boundary)",
+        },
+        min_lon: {
+          type: "number",
+          description: "Minimum longitude (west boundary)",
+        },
+        max_lat: {
+          type: "number",
+          description: "Maximum latitude (north boundary)",
+        },
+        max_lon: {
+          type: "number",
+          description: "Maximum longitude (east boundary)",
+        },
+        max_records: {
+          type: "number",
+          description: "Maximum number of records to return (default: 100, max: 1000)",
+          default: 100,
+        },
       },
-    }
-  );
+      required: ["min_lat", "min_lon", "max_lat", "max_lon"],
+    },
+    handler: async (params) => {
+      const geometry = JSON.stringify({
+        xmin: params.min_lon,
+        ymin: params.min_lat,
+        xmax: params.max_lon,
+        ymax: params.max_lat,
+      });
 
-  // List available tools
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return {
-      tools: [
-        {
-          name: "get_parking_by_bbox",
-          description: "Get parking blockface data within a bounding box (lat/lon coordinates). Returns street parking availability, rates, and location information for SF parking zones.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              min_lat: {
-                type: "number",
-                description: "Minimum latitude (south boundary)",
-              },
-              min_lon: {
-                type: "number",
-                description: "Minimum longitude (west boundary)",
-              },
-              max_lat: {
-                type: "number",
-                description: "Maximum latitude (north boundary)",
-              },
-              max_lon: {
-                type: "number",
-                description: "Maximum longitude (east boundary)",
-              },
-              max_records: {
-                type: "number",
-                description: "Maximum number of records to return (default: 100, max: 1000)",
-                default: 100,
-              },
-            },
-            required: ["min_lat", "min_lon", "max_lat", "max_lon"],
-          },
-        },
-        {
-          name: "get_parking_by_street",
-          description: "Search for parking blockface data by street name. Returns availability, rates, and location information for matching streets in San Francisco.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              street_name: {
-                type: "string",
-                description: "Street name to search for (e.g., 'Market', 'Mission')",
-              },
-              max_records: {
-                type: "number",
-                description: "Maximum number of records to return (default: 50, max: 1000)",
-                default: 50,
-              },
-            },
-            required: ["street_name"],
-          },
-        },
-        {
-          name: "get_parking_by_location",
-          description: "Get parking blockface data near a specific point (lat/lon). Searches within approximately 200 meters of the given coordinates.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              latitude: {
-                type: "number",
-                description: "Latitude of the location",
-              },
-              longitude: {
-                type: "number",
-                description: "Longitude of the location",
-              },
-              max_records: {
-                type: "number",
-                description: "Maximum number of records to return (default: 20, max: 1000)",
-                default: 20,
-              },
-            },
-            required: ["latitude", "longitude"],
-          },
-        },
-      ],
-    };
-  });
-
-  // Handle tool calls
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const { name, arguments: args } = request.params;
-
-    try {
-      let queryParams = {};
-      let data;
-
-      switch (name) {
-        case "get_parking_by_bbox": {
-          const geometry = JSON.stringify({
-            xmin: args.min_lon,
-            ymin: args.min_lat,
-            xmax: args.max_lon,
-            ymax: args.max_lat,
-          });
-
-          queryParams = {
-            where: "1=1",
-            geometry,
-            geometryType: "esriGeometryEnvelope",
-            spatialRel: "esriSpatialRelIntersects",
-            inSR: "4326",
-            resultRecordCount: String(Math.min(args.max_records || 100, 1000)),
-          };
-
-          data = await queryParkingAPI(queryParams);
-          break;
-        }
-
-        case "get_parking_by_street": {
-          queryParams = {
-            where: `STREET_NAME LIKE '%${args.street_name.toUpperCase()}%'`,
-            resultRecordCount: String(Math.min(args.max_records || 50, 1000)),
-          };
-
-          data = await queryParkingAPI(queryParams);
-          break;
-        }
-
-        case "get_parking_by_location": {
-          const offset = 0.0018; // ~200 meters
-          const geometry = JSON.stringify({
-            xmin: args.longitude - offset,
-            ymin: args.latitude - offset,
-            xmax: args.longitude + offset,
-            ymax: args.latitude + offset,
-          });
-
-          queryParams = {
-            where: "1=1",
-            geometry,
-            geometryType: "esriGeometryEnvelope",
-            spatialRel: "esriSpatialRelIntersects",
-            inSR: "4326",
-            resultRecordCount: String(Math.min(args.max_records || 20, 1000)),
-          };
-
-          data = await queryParkingAPI(queryParams);
-          break;
-        }
-
-        default:
-          throw new Error(`Unknown tool: ${name}`);
-      }
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(data, null, 2),
-          },
-        ],
+      const queryParams = {
+        where: "1=1",
+        geometry,
+        geometryType: "esriGeometryEnvelope",
+        spatialRel: "esriSpatialRelIntersects",
+        inSR: "4326",
+        resultRecordCount: String(Math.min(params.max_records || 100, 1000)),
       };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error: ${error.message}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-  });
 
-  return server;
-}
+      const data = await queryParkingAPI(queryParams);
+      return JSON.stringify(data, null, 2);
+    },
+  },
+  {
+    name: "get_parking_by_street",
+    description: "Search for parking blockface data by street name. Returns availability, rates, and location information for matching streets in San Francisco.",
+    parameters: {
+      type: "object",
+      properties: {
+        street_name: {
+          type: "string",
+          description: "Street name to search for (e.g., 'Market', 'Mission')",
+        },
+        max_records: {
+          type: "number",
+          description: "Maximum number of records to return (default: 50, max: 1000)",
+          default: 50,
+        },
+      },
+      required: ["street_name"],
+    },
+    handler: async (params) => {
+      const queryParams = {
+        where: `STREET_NAME LIKE '%${params.street_name.toUpperCase()}%'`,
+        resultRecordCount: String(Math.min(params.max_records || 50, 1000)),
+      };
+
+      const data = await queryParkingAPI(queryParams);
+      return JSON.stringify(data, null, 2);
+    },
+  },
+  {
+    name: "get_parking_by_location",
+    description: "Get parking blockface data near a specific point (lat/lon). Searches within approximately 200 meters of the given coordinates.",
+    parameters: {
+      type: "object",
+      properties: {
+        latitude: {
+          type: "number",
+          description: "Latitude of the location",
+        },
+        longitude: {
+          type: "number",
+          description: "Longitude of the location",
+        },
+        max_records: {
+          type: "number",
+          description: "Maximum number of records to return (default: 20, max: 1000)",
+          default: 20,
+        },
+      },
+      required: ["latitude", "longitude"],
+    },
+    handler: async (params) => {
+      const offset = 0.0018; // ~200 meters
+      const geometry = JSON.stringify({
+        xmin: params.longitude - offset,
+        ymin: params.latitude - offset,
+        xmax: params.longitude + offset,
+        ymax: params.latitude + offset,
+      });
+
+      const queryParams = {
+        where: "1=1",
+        geometry,
+        geometryType: "esriGeometryEnvelope",
+        spatialRel: "esriSpatialRelIntersects",
+        inSR: "4326",
+        resultRecordCount: String(Math.min(params.max_records || 20, 1000)),
+      };
+
+      const data = await queryParkingAPI(queryParams);
+      return JSON.stringify(data, null, 2);
+    },
+  },
+];
 
 /**
- * Vercel serverless handler for MCP over streamable HTTP
+ * Create MCP handler for Vercel
  */
-export default async function handler(req, res) {
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  const server = createServer();
-  const transport = new StreamableHTTPServerTransport(req, res);
-
-  await server.connect(transport);
-}
+export default createMCPHandler({
+  name: "sf-parking",
+  version: "0.1.0",
+  tools,
+});
