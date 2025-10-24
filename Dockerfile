@@ -2,19 +2,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install uv
-RUN pip install uv
-
-# Copy files
-COPY fastmcp_server.py .
+# Copy requirements and install
 COPY pyproject.toml .
-COPY uv.lock .
+RUN pip install --no-cache-dir fastmcp httpx
 
-# Install dependencies
-RUN uv sync
+# Copy server file
+COPY fastmcp_server.py .
 
 # Expose port
 EXPOSE 8000
 
 # Run server with HTTP transport
-CMD ["uv", "run", "fastmcp_server.py", "--http"]
+CMD ["python", "fastmcp_server.py", "--http"]
