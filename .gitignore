@@ -38,3 +38,7 @@ uv.lock
 .DS_Store
 Thumbs.db
 .vercel
+
+# Node
+node_modules/
+package-lock.json
