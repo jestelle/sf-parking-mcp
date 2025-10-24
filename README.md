@@ -1,6 +1,8 @@
-# SF Parking MCP Server
+# SF Parking API
 
-An MCP (Model Context Protocol) server that provides access to San Francisco parking data via the SFMTA ArcGIS REST API.
+A REST API that provides access to San Francisco parking data via the SFMTA ArcGIS REST API.
+
+**🎉 Live API:** https://sf-parking.vercel.app/api
 
 ## Features
 
